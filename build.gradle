@@ -1,84 +1,80 @@
-plugins {
-  id 'java'
-  id 'application'
-  id 'eclipse'
-  id 'idea'
+buildscript {
+  repositories {
+    gradlePluginPortal()
+    mavenCentral()
+    google()
+  }
+  dependencies {
+    if (enableGraalNative == 'true') {
+      classpath "org.graalvm.buildtools.native:org.graalvm.buildtools.native.gradle.plugin:0.9.28"
+    }
+  }
 }
+
+plugins {
+  id "io.github.fourlastor.construo" version "1.4.1"
+  id "application"
+}
+
+[compileJava, compileTestJava]*.options*.encoding = 'UTF-8'
 
 ext {
-  lwjglVersion = "3.3.1"  // Define LWJGL version here
+  lwjglVersion = "3.3.1"
+  gdxVersion = '1.9.12'
+  gdxControllersVersion = '1.9.12'
+  gdxBasisUniversalVersion = '1.9.12'
+  lmlVersion = '1.12.1'
+  appName = 'game'
+  projectVersion = '1.0.0'
 }
 
-repositories {
-  mavenCentral()
-  maven { url 'https://s01.oss.sonatype.org' }
-  mavenLocal()
-  google()
-  maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
-  maven { url 'https://jitpack.io' } // Move JitPack to repositories
-}
+sourceSets.main.resources.srcDirs += [rootProject.file('assets').path]
+mainClassName = 'io.github.game.lwjgl3.Lwjgl3Launcher'
+application.setMainClass(mainClassName)
+eclipse.project.name = appName + '-lwjgl3'
+java.sourceCompatibility = 17
+java.targetCompatibility = 17
 
 dependencies {
-  implementation "org.lwjgl:lwjgl:${lwjglVersion}"
-  implementation "org.lwjgl:lwjgl-glfw:${lwjglVersion}"
-  implementation "org.lwjgl:lwjgl-opengl:${lwjglVersion}"
-  // Add other dependencies as necessary
-}
-
-application {
-  mainClassName = 'io.github.AngryBirds.lwjgl3.Lwjgl3Launcher' // Specify the main class for the application
-}
-
-// Set Java compatibility for all projects
-allprojects {
-  sourceCompatibility = '17' // Make sure this is a String
-  targetCompatibility = '17'  // Make sure this is a String
-}
-
-// Configure subprojects
-subprojects {
-  apply plugin: 'java-library'
-
-  version = '1.0.0' // Define project version
-  ext.appName = 'Game'
-
-  repositories {
-    mavenCentral()
-    maven { url 'https://s01.oss.sonatype.org' }
-    mavenLocal()
-    maven { url 'https://oss.sonatype.org/content/repositories/snapshots/' }
-    dependencies {
-      // JUnit 5 (JUnit Jupiter)
-      testImplementation 'org.junit.jupiter:junit-jupiter-api:5.9.3'
-      testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.9.3'
-      // Add test dependencies her
-      testImplementation 'org.mockito:mockito-core:5.5.0'
-      testImplementation 'org.mockito:mockito-junit-jupiter:5.5.0' // For JUnit 5 integration
-
-    }
-    tasks.test {
-      useJUnitPlatform()
-    }
-  }
-
-  tasks.register('generateAssetList') {
-    inputs.dir("${project.rootDir}/assets/") // Set input directory for asset generation
-    File assetsFolder = new File("${project.rootDir}/assets/")
-    File assetsFile = new File(assetsFolder, "assets.txt")
-    assetsFile.delete()
-
-    // Collect all asset paths and append to assets.txt
-    fileTree(assetsFolder).collect { assetsFolder.relativePath(it) }.sort().each {
-      assetsFile.append(it + "/n")
-    }
-  }
-
-  processResources.dependsOn 'generateAssetList' // Ensure assets are generated before processing resources
-
-  compileJava {
-    options.incremental = true // Enable incremental compilation for faster builds
+//  implementation project(':core')
+  implementation "com.badlogicgames.gdx:gdx-box2d:$gdxVersion"
+  implementation "com.badlogicgames.gdx:gdx:1.11.0"
+  implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:1.11.0"
+  implementation "com.badlogicgames.gdx:gdx-platform:1.11.0:natives-desktop"
+  implementation "com.badlogicgames.gdx:gdx-box2d-platform:$gdxVersion:natives-desktop"
+  implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
+  implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+  implementation "com.badlogicgames.gdx:gdx-controllers:$gdxControllersVersion"
+  implementation "com.badlogicgames.gdx:gdx-controllers-lwjgl3:$gdxControllersVersion"
+  implementation "com.crashinvaders.basisu:basisu-wrapper:1.0.2"
+  implementation 'org.mini2Dx:universal-tween-engine:6.3.3'
+  implementation 'org.xerial:sqlite-jdbc:3.46.1.3'
+  if (enableGraalNative == 'true') {
+    implementation "io.github.berstanio:gdx-svmhelper-backend-lwjgl3:$graalHelperVersion"
   }
 }
 
-// Set Eclipse project name
-eclipse.project.name = 'Game'
+def os = System.properties['os.name'].toLowerCase()
+
+run {
+  workingDir = rootProject.file('assets').path
+  setIgnoreExitValue(true)
+
+  if (os.contains('mac')) {
+    jvmArgs += "-XstartOnFirstThread"
+  }
+}
+jar {
+  archiveFileName.set("${appName}-${projectVersion}.jar")
+  duplicatesStrategy DuplicatesStrategy.EXCLUDE
+  from { configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) } }
+  exclude('META-INF/INDEX.LIST', 'META-INF/.SF', 'META-INF/.DSA', 'META-INF/*.RSA')
+  manifest {
+    attributes 'Main-Class': mainClassName
+  }
+  doLast {
+    file(archiveFile).setExecutable(true, false)
+  }
+}
+
+
